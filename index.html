@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Drag Drop AI Game</title>
+  <title>Drag Drop Wall Game</title>
   <style>
     * {
       box-sizing: border-box;
@@ -13,9 +13,8 @@
 
     body {
       overflow: hidden;
-      font-family: Arial, sans-serif;
       background: #111;
-      color: white;
+      font-family: Arial, sans-serif;
     }
 
     #game {
@@ -92,20 +91,31 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 12px;
-      color: black;
       user-select: none;
     }
 
     .rect-small { width: 40px; height: 25px; background: #ff5c5c; }
     .rect-medium { width: 60px; height: 35px; background: #ffd54a; }
     .rect-large { width: 90px; height: 50px; background: #4fc3f7; }
-    .player-tool { width: 45px; height: 45px; background: limegreen; }
-    .delete-box { width: 80px; height: 80px; background: #222; color: white; border: 2px dashed white; }
 
-    .placed {
+    .player-tool {
+      width: 45px;
+      height: 45px;
+      background: limegreen;
+    }
+
+    .delete-box {
+      width: 80px;
+      height: 80px;
+      background: #222;
+      color: white;
+      border: 2px dashed white;
+    }
+
+    .placedRect {
       position: absolute;
-      z-index: 5;
+      z-index: 4;
+      border: 2px solid rgba(255,255,255,0.7);
     }
 
     #player {
@@ -132,14 +142,8 @@
       height: 120px;
       border: 2px dashed rgba(0,255,255,0.35);
       border-radius: 50%;
-      pointer-events: none;
       transform: translate(-40px, -40px);
-    }
-
-    .placedRect {
-      position: absolute;
-      border: 2px solid rgba(255,255,255,0.8);
-      z-index: 4;
+      pointer-events: none;
     }
 
     #deleteZone {
@@ -167,7 +171,6 @@
     <div id="rightWall" class="wall"></div>
 
     <div id="playArea"></div>
-
     <div id="deleteZone">DELETE</div>
 
     <div id="panel">
@@ -175,29 +178,29 @@
       <div class="tool rect-medium" draggable="true" data-type="medium"></div>
       <div class="tool rect-large" draggable="true" data-type="large"></div>
       <div class="tool player-tool" draggable="true" data-type="player"></div>
-      <div class="tool delete-box" draggable="false">Delete</div>
+      <div class="tool delete-box">Delete</div>
     </div>
   </div>
 
   <script>
     const playArea = document.getElementById("playArea");
     const deleteZone = document.getElementById("deleteZone");
-    const panel = document.getElementById("panel");
 
     let draggedType = null;
+    let draggedElement = null;
     let player = null;
     let aiBall = null;
-    let aiX = 300;
+    let aiX = 200;
     let aiY = 200;
     let aiVX = 2;
     let aiVY = 2;
-    let keys = {};
-
-    const wallColor = "rgb(85, 85, 85)";
+    const keys = {};
+    const obstacles = [];
 
     document.querySelectorAll("[draggable='true']").forEach(tool => {
-      tool.addEventListener("dragstart", e => {
+      tool.addEventListener("dragstart", () => {
         draggedType = tool.dataset.type;
+        draggedElement = null;
       });
     });
 
@@ -210,10 +213,8 @@
       const y = e.clientY - rect.top;
 
       if (draggedType === "small" || draggedType === "medium" || draggedType === "large") {
-        createRectangle(draggedType, x, y);
-      }
-
-      if (draggedType === "player") {
+        createObstacle(draggedType, x, y);
+      } else if (draggedType === "player") {
         if (!player) {
           player = document.createElement("div");
           player.id = "player";
@@ -226,9 +227,9 @@
       draggedType = null;
     });
 
-    function createRectangle(type, x, y) {
+    function createObstacle(type, x, y) {
       const div = document.createElement("div");
-      div.className = "placedRect placed";
+      div.className = "placedRect";
       div.draggable = true;
 
       if (type === "small") {
@@ -248,62 +249,74 @@
       div.style.left = x + "px";
       div.style.top = y + "px";
 
-      div.addEventListener("dragstart", e => {
+      div.addEventListener("dragstart", () => {
         draggedElement = div;
       });
 
       playArea.appendChild(div);
+      obstacles.push(div);
     }
 
-    let draggedElement = null;
-
-    playArea.addEventListener("dragstart", e => {
-      if (e.target.classList.contains("placedRect")) {
-        draggedElement = e.target;
-      }
-    });
-
-    playArea.addEventListener("dragend", e => {
-      draggedElement = null;
-    });
-
-    playArea.addEventListener("dragover", e => {
-      e.preventDefault();
-    });
-
-    playArea.addEventListener("drop", e => {
-      e.preventDefault();
-      const rect = playArea.getBoundingClientRect();
-      const x = e.clientX - rect.left;
-      const y = e.clientY - rect.top;
-
+    playArea.addEventListener("dragend", () => {
       if (draggedElement) {
-        const w = draggedElement.offsetWidth;
-        const h = draggedElement.offsetHeight;
-        draggedElement.style.left = (x - w / 2) + "px";
-        draggedElement.style.top = (y - h / 2) + "px";
-
         const zone = deleteZone.getBoundingClientRect();
-        const elRect = draggedElement.getBoundingClientRect();
+        const box = draggedElement.getBoundingClientRect();
 
         if (
-          elRect.left < zone.right &&
-          elRect.right > zone.left &&
-          elRect.top < zone.bottom &&
-          elRect.bottom > zone.top
+          box.left < zone.right &&
+          box.right > zone.left &&
+          box.top < zone.bottom &&
+          box.bottom > zone.top
         ) {
+          const index = obstacles.indexOf(draggedElement);
+          if (index !== -1) obstacles.splice(index, 1);
           draggedElement.remove();
         }
       }
+      draggedElement = null;
     });
 
-    document.addEventListener("keydown", e => {
-      keys[e.key.toLowerCase()] = true;
-    });
+    document.addEventListener("keydown", e => keys[e.key.toLowerCase()] = true);
+    document.addEventListener("keyup", e => keys[e.key.toLowerCase()] = false);
 
-    document.addEventListener("keyup", e => {
-      keys[e.key.toLowerCase()] = false;
-    });
+    function rectsOverlap(a, b) {
+      return !(
+        a.right <= b.left ||
+        a.left >= b.right ||
+        a.bottom <= b.top ||
+        a.top >= b.bottom
+      );
+    }
+
+    function getPlayerRectAt(x, y) {
+      return {
+        left: x,
+        top: y,
+        right: x + player.offsetWidth,
+        bottom: y + player.offsetHeight
+      };
+    }
+
+    function collidesWithObstacle(rect) {
+      return obstacles.some(ob => {
+        const o = ob.getBoundingClientRect();
+        const p = playArea.getBoundingClientRect();
+        return rectsOverlap(
+          {
+            left: rect.left,
+            top: rect.top,
+            right: rect.right,
+            bottom: rect.bottom
+          },
+          {
+            left: o.left - p.left,
+            top: o.top - p.top,
+            right: o.right - p.left,
+            bottom: o.bottom - p.top
+          }
+        );
+      });
+    }
 
     function movePlayer() {
       if (!player) return;
@@ -312,45 +325,80 @@
       let y = parseFloat(player.style.top || 100);
       const speed = 4;
 
-      if (keys["w"]) y -= speed;
-      if (keys["s"]) y += speed;
-      if (keys["a"]) x -= speed;
-      if (keys["d"]) x += speed;
+      let nextX = x;
+      let nextY = y;
+
+      if (keys["w"]) nextY -= speed;
+      if (keys["s"]) nextY += speed;
+      if (keys["a"]) nextX -= speed;
+      if (keys["d"]) nextX += speed;
 
       const maxX = playArea.clientWidth - player.offsetWidth;
       const maxY = playArea.clientHeight - player.offsetHeight;
 
-      x = Math.max(0, Math.min(maxX, x));
-      y = Math.max(0, Math.min(maxY, y));
+      nextX = Math.max(0, Math.min(maxX, nextX));
+      nextY = Math.max(0, Math.min(maxY, nextY));
 
-      player.style.left = x + "px";
-      player.style.top = y + "px";
+      const testRect = getPlayerRectAt(nextX, nextY);
+
+      if (!collidesWithObstacle(testRect)) {
+        player.style.left = nextX + "px";
+        player.style.top = nextY + "px";
+      }
     }
 
     function createAIBall() {
       aiBall = document.createElement("div");
       aiBall.id = "aiBall";
-      playArea.appendChild(aiBall);
 
       const sensor = document.createElement("div");
       sensor.id = "sensor";
       aiBall.appendChild(sensor);
+
+      playArea.appendChild(aiBall);
     }
 
-    function senseWallsAndMove() {
+    function aiRectAt(x, y) {
+      return {
+        left: x,
+        top: y,
+        right: x + 40,
+        bottom: y + 40
+      };
+    }
+
+    function aiHitsObstacle(rect) {
+      return obstacles.some(ob => {
+        const o = ob.getBoundingClientRect();
+        const p = playArea.getBoundingClientRect();
+        return rectsOverlap(
+          rect,
+          {
+            left: o.left - p.left,
+            top: o.top - p.top,
+            right: o.right - p.left,
+            bottom: o.bottom - p.top
+          }
+        );
+      });
+    }
+
+    function senseAndMoveAI() {
       if (!aiBall) return;
 
-      const maxX = playArea.clientWidth - aiBall.offsetWidth;
-      const maxY = playArea.clientHeight - aiBall.offsetHeight;
+      const maxX = playArea.clientWidth - 40;
+      const maxY = playArea.clientHeight - 40;
 
-      const nextX = aiX + aiVX;
-      const nextY = aiY + aiVY;
+      let nextX = aiX + aiVX;
+      let nextY = aiY + aiVY;
 
-      if (nextX <= 0 || nextX >= maxX) {
+      if (nextX <= 0 || nextX >= maxX) aiVX *= -1;
+      if (nextY <= 0 || nextY >= maxY) aiVY *= -1;
+
+      const test = aiRectAt(aiX + aiVX, aiY + aiVY);
+
+      if (aiHitsObstacle(test)) {
         aiVX *= -1;
-      }
-
-      if (nextY <= 0 || nextY >= maxY) {
         aiVY *= -1;
       }
 
@@ -363,13 +411,13 @@
 
     createAIBall();
 
-    function gameLoop() {
+    function loop() {
       movePlayer();
-      senseWallsAndMove();
-      requestAnimationFrame(gameLoop);
+      senseAndMoveAI();
+      requestAnimationFrame(loop);
     }
 
-    gameLoop();
+    loop();
   </script>
 </body>
 </html>
