@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Drag Drop Wall Game</title>
+  <title>Wall Builder Game</title>
   <style>
     * {
       box-sizing: border-box;
@@ -190,6 +190,7 @@
     let draggedElement = null;
     let player = null;
     let aiBall = null;
+    let sensor = null;
     let aiX = 200;
     let aiY = 200;
     let aiVX = 2;
@@ -276,8 +277,13 @@
       draggedElement = null;
     });
 
-    document.addEventListener("keydown", e => keys[e.key.toLowerCase()] = true);
-    document.addEventListener("keyup", e => keys[e.key.toLowerCase()] = false);
+    document.addEventListener("keydown", e => {
+      keys[e.key.toLowerCase()] = true;
+    });
+
+    document.addEventListener("keyup", e => {
+      keys[e.key.toLowerCase()] = false;
+    });
 
     function rectsOverlap(a, b) {
       return !(
@@ -288,34 +294,28 @@
       );
     }
 
-    function getPlayerRectAt(x, y) {
+    function getRect(el, x, y) {
       return {
         left: x,
         top: y,
-        right: x + player.offsetWidth,
-        bottom: y + player.offsetHeight
+        right: x + el.offsetWidth,
+        bottom: y + el.offsetHeight
+      };
+    }
+
+    function obstacleRect(ob) {
+      const r = ob.getBoundingClientRect();
+      const p = playArea.getBoundingClientRect();
+      return {
+        left: r.left - p.left,
+        top: r.top - p.top,
+        right: r.right - p.left,
+        bottom: r.bottom - p.top
       };
     }
 
     function collidesWithObstacle(rect) {
-      return obstacles.some(ob => {
-        const o = ob.getBoundingClientRect();
-        const p = playArea.getBoundingClientRect();
-        return rectsOverlap(
-          {
-            left: rect.left,
-            top: rect.top,
-            right: rect.right,
-            bottom: rect.bottom
-          },
-          {
-            left: o.left - p.left,
-            top: o.top - p.top,
-            right: o.right - p.left,
-            bottom: o.bottom - p.top
-          }
-        );
-      });
+      return obstacles.some(ob => rectsOverlap(rect, obstacleRect(ob)));
     }
 
     function movePlayer() {
@@ -339,7 +339,7 @@
       nextX = Math.max(0, Math.min(maxX, nextX));
       nextY = Math.max(0, Math.min(maxY, nextY));
 
-      const testRect = getPlayerRectAt(nextX, nextY);
+      const testRect = getRect(player, nextX, nextY);
 
       if (!collidesWithObstacle(testRect)) {
         player.style.left = nextX + "px";
@@ -351,7 +351,7 @@
       aiBall = document.createElement("div");
       aiBall.id = "aiBall";
 
-      const sensor = document.createElement("div");
+      sensor = document.createElement("div");
       sensor.id = "sensor";
       aiBall.appendChild(sensor);
 
@@ -367,20 +367,47 @@
       };
     }
 
-    function aiHitsObstacle(rect) {
-      return obstacles.some(ob => {
-        const o = ob.getBoundingClientRect();
-        const p = playArea.getBoundingClientRect();
-        return rectsOverlap(
-          rect,
-          {
-            left: o.left - p.left,
-            top: o.top - p.top,
-            right: o.right - p.left,
-            bottom: o.bottom - p.top
-          }
+    function sensorRectAt(x, y) {
+      return {
+        left: x - 40,
+        top: y - 40,
+        right: x + 80,
+        bottom: y + 80
+      };
+    }
+
+    function aiTouchesObstacle(rect) {
+      return obstacles.some(ob => rectsOverlap(rect, obstacleRect(ob)));
+    }
+
+    function aiSensorSeesObstacle(rect) {
+      return obstacles.some(ob => rectsOverlap(rect, obstacleRect(ob)));
+    }
+
+    function pickNewDirection() {
+      const dirs = [
+        [2, 0], [-2, 0], [0, 2], [0, -2],
+        [2, 2], [2, -2], [-2, 2], [-2, -2]
+      ];
+
+      for (let i = 0; i < 20; i++) {
+        const d = dirs[Math.floor(Math.random() * dirs.length)];
+        const testX = aiX + d[0] * 12;
+        const testY = aiY + d[1] * 12;
+        const testRect = aiRectAt(
+          Math.max(0, Math.min(playArea.clientWidth - 40, testX)),
+          Math.max(0, Math.min(playArea.clientHeight - 40, testY))
         );
-      });
+
+        if (!aiSensorSeesObstacle(testRect)) {
+          aiVX = d[0];
+          aiVY = d[1];
+          return;
+        }
+      }
+
+      aiVX *= -1;
+      aiVY *= -1;
     }
 
     function senseAndMoveAI() {
@@ -389,21 +416,35 @@
       const maxX = playArea.clientWidth - 40;
       const maxY = playArea.clientHeight - 40;
 
+      const sensorRect = sensorRectAt(aiX + 20, aiY + 20);
+
+      if (aiSensorSeesObstacle(sensorRect)) {
+        pickNewDirection();
+      }
+
       let nextX = aiX + aiVX;
       let nextY = aiY + aiVY;
 
-      if (nextX <= 0 || nextX >= maxX) aiVX *= -1;
-      if (nextY <= 0 || nextY >= maxY) aiVY *= -1;
-
-      const test = aiRectAt(aiX + aiVX, aiY + aiVY);
-
-      if (aiHitsObstacle(test)) {
+      if (nextX <= 0 || nextX >= maxX) {
         aiVX *= -1;
-        aiVY *= -1;
+        pickNewDirection();
       }
 
-      aiX += aiVX;
-      aiY += aiVY;
+      if (nextY <= 0 || nextY >= maxY) {
+        aiVY *= -1;
+        pickNewDirection();
+      }
+
+      const nextRect = aiRectAt(nextX, nextY);
+
+      if (aiTouchesObstacle(nextRect)) {
+        pickNewDirection();
+        nextX = aiX + aiVX;
+        nextY = aiY + aiVY;
+      }
+
+      aiX = Math.max(0, Math.min(maxX, nextX));
+      aiY = Math.max(0, Math.min(maxY, nextY));
 
       aiBall.style.left = aiX + "px";
       aiBall.style.top = aiY + "px";
