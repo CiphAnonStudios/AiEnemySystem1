@@ -62,12 +62,21 @@
     resize();
 
     const keys = {};
+    let gameOver = false;
+    let abilityUsed = false;
+
+    const mapImg = new Image();
+    mapImg.src = "Map.png";
+
     window.addEventListener("keydown", e => {
-      keys[e.key.toLowerCase()] = true;
-      if (e.key === " " || e.key.toLowerCase() === "shift") {
+      const key = e.key.toLowerCase();
+      keys[key] = true;
+
+      if ((e.key === " " || key === "shift") && !e.repeat) {
         useAbility();
       }
     });
+
     window.addEventListener("keyup", e => {
       keys[e.key.toLowerCase()] = false;
     });
@@ -148,6 +157,15 @@
       const dx = cx - closestX;
       const dy = cy - closestY;
       return dx * dx + dy * dy < r * r;
+    }
+
+    function drawMap() {
+      if (mapImg.complete && mapImg.naturalWidth > 0) {
+        ctx.drawImage(mapImg, 0, 0, canvas.width, canvas.height);
+      } else {
+        ctx.fillStyle = "#222";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+      }
     }
 
     function drawPlayer() {
@@ -287,16 +305,6 @@
         player.dashCooldown--;
       }
 
-      if (keys[" "] || keys["shift"]) {
-        if (player.dashCooldown === 0 && player.dashTime === 0) {
-          player.dashTime = 12;
-          player.dashCooldown = 180;
-        }
-      }
-
-      let dx = 0;
-      let dy = 0;
-
       if (keys["arrowup"] || keys["w"]) dy -= speed;
       if (keys["arrowdown"] || keys["s"]) dy += speed;
       if (keys["arrowleft"] || keys["a"]) dx -= speed;
@@ -309,13 +317,11 @@
       let count = 0;
       coins.forEach(c => {
         if (!c.taken) {
-          const cx = c.x;
-          const cy = c.y;
           if (
-            player.x < cx + c.r &&
-            player.x + player.size > cx - c.r &&
-            player.y < cy + c.r &&
-            player.y + player.size > cy - c.r
+            player.x < c.x + c.r &&
+            player.x + player.size > c.x - c.r &&
+            player.y < c.y + c.r &&
+            player.y + player.size > c.y - c.r
           ) {
             c.taken = true;
           }
@@ -352,11 +358,10 @@
       }
     }
 
-    let gameOver = false;
-
     function loop() {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
+      drawMap();
       drawWalls();
       drawCoins();
       drawDoor();
