@@ -3,397 +3,373 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Green Square Game</title>
+  <title>Drag Drop AI Game</title>
   <style>
-    html, body {
+    * {
+      box-sizing: border-box;
       margin: 0;
       padding: 0;
+    }
+
+    body {
       overflow: hidden;
-      background: #111;
       font-family: Arial, sans-serif;
-    }
-
-    canvas {
-      display: block;
-      background: #222;
-    }
-
-    #ui {
-      position: fixed;
-      top: 10px;
-      left: 10px;
+      background: #111;
       color: white;
+    }
+
+    #game {
+      position: relative;
+      width: 100vw;
+      height: 100vh;
+      background: #1b1b1b;
+      overflow: hidden;
+    }
+
+    .wall {
+      position: absolute;
+      background: #555;
+      z-index: 2;
+    }
+
+    #topWall {
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 20px;
+    }
+
+    #bottomWall {
+      bottom: 120px;
+      left: 0;
+      width: 100%;
+      height: 20px;
+    }
+
+    #leftWall {
+      top: 0;
+      left: 0;
+      width: 20px;
+      height: 100%;
+    }
+
+    #rightWall {
+      top: 0;
+      right: 0;
+      width: 20px;
+      height: 100%;
+    }
+
+    #playArea {
+      position: absolute;
+      top: 20px;
+      left: 20px;
+      right: 20px;
+      bottom: 140px;
+      overflow: hidden;
+    }
+
+    #panel {
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      height: 120px;
+      background: #222;
+      border-top: 2px solid #444;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 12px;
       z-index: 10;
-      font-size: 16px;
-      line-height: 1.5;
+    }
+
+    .tool {
+      width: 70px;
+      height: 70px;
+      border: 2px solid white;
+      cursor: grab;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      color: black;
       user-select: none;
     }
 
-    #msg {
-      margin-top: 8px;
-      font-size: 18px;
-      color: #fff;
+    .rect-small { width: 40px; height: 25px; background: #ff5c5c; }
+    .rect-medium { width: 60px; height: 35px; background: #ffd54a; }
+    .rect-large { width: 90px; height: 50px; background: #4fc3f7; }
+    .player-tool { width: 45px; height: 45px; background: limegreen; }
+    .delete-box { width: 80px; height: 80px; background: #222; color: white; border: 2px dashed white; }
+
+    .placed {
+      position: absolute;
+      z-index: 5;
+    }
+
+    #player {
+      position: absolute;
+      width: 45px;
+      height: 45px;
+      background: limegreen;
+      border: 2px solid #0a0;
+      z-index: 6;
+    }
+
+    #aiBall {
+      position: absolute;
+      width: 40px;
+      height: 40px;
+      background: deepskyblue;
+      border-radius: 50%;
+      z-index: 6;
+    }
+
+    #sensor {
+      position: absolute;
+      width: 120px;
+      height: 120px;
+      border: 2px dashed rgba(0,255,255,0.35);
+      border-radius: 50%;
+      pointer-events: none;
+      transform: translate(-40px, -40px);
+    }
+
+    .placedRect {
+      position: absolute;
+      border: 2px solid rgba(255,255,255,0.8);
+      z-index: 4;
+    }
+
+    #deleteZone {
+      position: absolute;
+      right: 20px;
+      bottom: 150px;
+      width: 100px;
+      height: 100px;
+      background: rgba(255, 0, 0, 0.25);
+      border: 2px solid red;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      z-index: 11;
       font-weight: bold;
     }
   </style>
 </head>
 <body>
-  <div id="ui">
-    <div>Coins: <span id="coinCount">0</span>/<span id="coinTotal">0</span></div>
-    <div>Ability: <span id="abilityText">Ready</span></div>
-    <div id="msg"></div>
+  <div id="game">
+    <div id="topWall" class="wall"></div>
+    <div id="bottomWall" class="wall"></div>
+    <div id="leftWall" class="wall"></div>
+    <div id="rightWall" class="wall"></div>
+
+    <div id="playArea"></div>
+
+    <div id="deleteZone">DELETE</div>
+
+    <div id="panel">
+      <div class="tool rect-small" draggable="true" data-type="small"></div>
+      <div class="tool rect-medium" draggable="true" data-type="medium"></div>
+      <div class="tool rect-large" draggable="true" data-type="large"></div>
+      <div class="tool player-tool" draggable="true" data-type="player"></div>
+      <div class="tool delete-box" draggable="false">Delete</div>
+    </div>
   </div>
-  <canvas id="game"></canvas>
 
   <script>
-    const canvas = document.getElementById("game");
-    const ctx = canvas.getContext("2d");
+    const playArea = document.getElementById("playArea");
+    const deleteZone = document.getElementById("deleteZone");
+    const panel = document.getElementById("panel");
 
-    const coinCountEl = document.getElementById("coinCount");
-    const coinTotalEl = document.getElementById("coinTotal");
-    const abilityText = document.getElementById("abilityText");
-    const msg = document.getElementById("msg");
+    let draggedType = null;
+    let player = null;
+    let aiBall = null;
+    let aiX = 300;
+    let aiY = 200;
+    let aiVX = 2;
+    let aiVY = 2;
+    let keys = {};
 
-    function resize() {
-      canvas.width = window.innerWidth;
-      canvas.height = window.innerHeight;
+    const wallColor = "rgb(85, 85, 85)";
+
+    document.querySelectorAll("[draggable='true']").forEach(tool => {
+      tool.addEventListener("dragstart", e => {
+        draggedType = tool.dataset.type;
+      });
+    });
+
+    playArea.addEventListener("dragover", e => e.preventDefault());
+
+    playArea.addEventListener("drop", e => {
+      e.preventDefault();
+      const rect = playArea.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+
+      if (draggedType === "small" || draggedType === "medium" || draggedType === "large") {
+        createRectangle(draggedType, x, y);
+      }
+
+      if (draggedType === "player") {
+        if (!player) {
+          player = document.createElement("div");
+          player.id = "player";
+          playArea.appendChild(player);
+        }
+        player.style.left = x + "px";
+        player.style.top = y + "px";
+      }
+
+      draggedType = null;
+    });
+
+    function createRectangle(type, x, y) {
+      const div = document.createElement("div");
+      div.className = "placedRect placed";
+      div.draggable = true;
+
+      if (type === "small") {
+        div.style.width = "40px";
+        div.style.height = "25px";
+        div.style.background = "#ff5c5c";
+      } else if (type === "medium") {
+        div.style.width = "60px";
+        div.style.height = "35px";
+        div.style.background = "#ffd54a";
+      } else {
+        div.style.width = "90px";
+        div.style.height = "50px";
+        div.style.background = "#4fc3f7";
+      }
+
+      div.style.left = x + "px";
+      div.style.top = y + "px";
+
+      div.addEventListener("dragstart", e => {
+        draggedElement = div;
+      });
+
+      playArea.appendChild(div);
     }
-    window.addEventListener("resize", resize);
-    resize();
 
-    const keys = {};
-    let gameOver = false;
-    let abilityUsed = false;
+    let draggedElement = null;
 
-    const mapImg = new Image();
-    mapImg.src = "Map.png";
-
-    window.addEventListener("keydown", e => {
-      const key = e.key.toLowerCase();
-      keys[key] = true;
-
-      if ((e.key === " " || key === "shift") && !e.repeat) {
-        useAbility();
+    playArea.addEventListener("dragstart", e => {
+      if (e.target.classList.contains("placedRect")) {
+        draggedElement = e.target;
       }
     });
 
-    window.addEventListener("keyup", e => {
+    playArea.addEventListener("dragend", e => {
+      draggedElement = null;
+    });
+
+    playArea.addEventListener("dragover", e => {
+      e.preventDefault();
+    });
+
+    playArea.addEventListener("drop", e => {
+      e.preventDefault();
+      const rect = playArea.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+
+      if (draggedElement) {
+        const w = draggedElement.offsetWidth;
+        const h = draggedElement.offsetHeight;
+        draggedElement.style.left = (x - w / 2) + "px";
+        draggedElement.style.top = (y - h / 2) + "px";
+
+        const zone = deleteZone.getBoundingClientRect();
+        const elRect = draggedElement.getBoundingClientRect();
+
+        if (
+          elRect.left < zone.right &&
+          elRect.right > zone.left &&
+          elRect.top < zone.bottom &&
+          elRect.bottom > zone.top
+        ) {
+          draggedElement.remove();
+        }
+      }
+    });
+
+    document.addEventListener("keydown", e => {
+      keys[e.key.toLowerCase()] = true;
+    });
+
+    document.addEventListener("keyup", e => {
       keys[e.key.toLowerCase()] = false;
     });
 
-    const player = {
-      x: 80,
-      y: 80,
-      size: 30,
-      speed: 3,
-      color: "lime",
-      dashSpeed: 8,
-      dashTime: 0,
-      dashCooldown: 0,
-      invisibleTime: 0,
-      lives: 1
-    };
+    function movePlayer() {
+      if (!player) return;
 
-    const enemy = {
-      x: 600,
-      y: 350,
-      size: 30,
-      speed: 2.4,
-      color: "red",
-      sensorRadius: 150
-    };
+      let x = parseFloat(player.style.left || 100);
+      let y = parseFloat(player.style.top || 100);
+      const speed = 4;
 
-    const door = {
-      x: 900,
-      y: 500,
-      w: 45,
-      h: 70,
-      open: false
-    };
+      if (keys["w"]) y -= speed;
+      if (keys["s"]) y += speed;
+      if (keys["a"]) x -= speed;
+      if (keys["d"]) x += speed;
 
-    const walls = [
-      { x: 0, y: 0, w: canvas.width, h: 20 },
-      { x: 0, y: canvas.height - 20, w: canvas.width, h: 20 },
-      { x: 0, y: 0, w: 20, h: canvas.height },
-      { x: canvas.width - 20, y: 0, w: 20, h: canvas.height },
+      const maxX = playArea.clientWidth - player.offsetWidth;
+      const maxY = playArea.clientHeight - player.offsetHeight;
 
-      { x: 120, y: 120, w: 220, h: 20 },
-      { x: 120, y: 120, w: 20, h: 180 },
-      { x: 300, y: 220, w: 20, h: 180 },
-      { x: 420, y: 150, w: 20, h: 240 },
-      { x: 520, y: 80, w: 200, h: 20 },
-      { x: 620, y: 80, w: 20, h: 220 },
-      { x: 760, y: 180, w: 220, h: 20 },
-      { x: 760, y: 180, w: 20, h: 220 },
-      { x: 920, y: 300, w: 20, h: 180 },
-      { x: 150, y: 420, w: 240, h: 20 },
-      { x: 220, y: 500, w: 20, h: 160 },
-      { x: 350, y: 560, w: 260, h: 20 }
-    ];
+      x = Math.max(0, Math.min(maxX, x));
+      y = Math.max(0, Math.min(maxY, y));
 
-    const coins = [
-      { x: 80, y: 200, r: 8, taken: false },
-      { x: 240, y: 340, r: 8, taken: false },
-      { x: 460, y: 260, r: 8, taken: false },
-      { x: 640, y: 140, r: 8, taken: false },
-      { x: 820, y: 260, r: 8, taken: false },
-      { x: 980, y: 420, r: 8, taken: false }
-    ];
-
-    coinTotalEl.textContent = coins.length;
-
-    function rectHit(a, b) {
-      return (
-        a.x < b.x + b.w &&
-        a.x + a.size > b.x &&
-        a.y < b.y + b.h &&
-        a.y + a.size > b.y
-      );
+      player.style.left = x + "px";
+      player.style.top = y + "px";
     }
 
-    function circleRectHit(cx, cy, r, rect) {
-      const closestX = Math.max(rect.x, Math.min(cx, rect.x + rect.w));
-      const closestY = Math.max(rect.y, Math.min(cy, rect.y + rect.h));
-      const dx = cx - closestX;
-      const dy = cy - closestY;
-      return dx * dx + dy * dy < r * r;
+    function createAIBall() {
+      aiBall = document.createElement("div");
+      aiBall.id = "aiBall";
+      playArea.appendChild(aiBall);
+
+      const sensor = document.createElement("div");
+      sensor.id = "sensor";
+      aiBall.appendChild(sensor);
     }
 
-    function drawMap() {
-      if (mapImg.complete && mapImg.naturalWidth > 0) {
-        ctx.drawImage(mapImg, 0, 0, canvas.width, canvas.height);
-      } else {
-        ctx.fillStyle = "#222";
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-      }
-    }
+    function senseWallsAndMove() {
+      if (!aiBall) return;
 
-    function drawPlayer() {
-      ctx.fillStyle = player.color;
-      ctx.fillRect(player.x, player.y, player.size, player.size);
-    }
+      const maxX = playArea.clientWidth - aiBall.offsetWidth;
+      const maxY = playArea.clientHeight - aiBall.offsetHeight;
 
-    function drawEnemy() {
-      ctx.fillStyle = enemy.color;
-      ctx.fillRect(enemy.x, enemy.y, enemy.size, enemy.size);
+      const nextX = aiX + aiVX;
+      const nextY = aiY + aiVY;
 
-      ctx.beginPath();
-      ctx.arc(enemy.x + enemy.size / 2, enemy.y + enemy.size / 2, enemy.sensorRadius, 0, Math.PI * 2);
-      ctx.strokeStyle = "rgba(255, 0, 0, 0.15)";
-      ctx.lineWidth = 2;
-      ctx.stroke();
-    }
-
-    function drawWalls() {
-      ctx.fillStyle = "gray";
-      walls.forEach(w => {
-        ctx.fillRect(w.x, w.y, w.w, w.h);
-      });
-    }
-
-    function drawCoins() {
-      coins.forEach(c => {
-        if (!c.taken) {
-          ctx.beginPath();
-          ctx.arc(c.x, c.y, c.r, 0, Math.PI * 2);
-          ctx.fillStyle = "gold";
-          ctx.fill();
-        }
-      });
-    }
-
-    function drawDoor() {
-      ctx.fillStyle = door.open ? "cyan" : "#444";
-      ctx.fillRect(door.x, door.y, door.w, door.h);
-    }
-
-    function moveWithCollision(obj, dx, dy) {
-      let nextX = obj.x + dx;
-      let nextY = obj.y + dy;
-
-      const testX = { x: nextX, y: obj.y, size: obj.size };
-      for (const wall of walls) {
-        if (rectHit(testX, wall)) {
-          nextX = obj.x;
-          break;
-        }
+      if (nextX <= 0 || nextX >= maxX) {
+        aiVX *= -1;
       }
 
-      const testY = { x: nextX, y: nextY, size: obj.size };
-      for (const wall of walls) {
-        if (rectHit(testY, wall)) {
-          nextY = obj.y;
-          break;
-        }
+      if (nextY <= 0 || nextY >= maxY) {
+        aiVY *= -1;
       }
 
-      obj.x = nextX;
-      obj.y = nextY;
+      aiX += aiVX;
+      aiY += aiVY;
+
+      aiBall.style.left = aiX + "px";
+      aiBall.style.top = aiY + "px";
     }
 
-    function canSeePlayer() {
-      const px = player.x + player.size / 2;
-      const py = player.y + player.size / 2;
-      const ex = enemy.x + enemy.size / 2;
-      const ey = enemy.y + enemy.size / 2;
+    createAIBall();
 
-      const dx = px - ex;
-      const dy = py - ey;
-      const dist = Math.sqrt(dx * dx + dy * dy);
-
-      if (dist > enemy.sensorRadius) return false;
-
-      const steps = Math.ceil(dist / 10);
-      for (let i = 1; i <= steps; i++) {
-        const x = ex + (dx * i) / steps;
-        const y = ey + (dy * i) / steps;
-        for (const wall of walls) {
-          if (x > wall.x && x < wall.x + wall.w && y > wall.y && y < wall.y + wall.h) {
-            return false;
-          }
-        }
-      }
-      return true;
+    function gameLoop() {
+      movePlayer();
+      senseWallsAndMove();
+      requestAnimationFrame(gameLoop);
     }
 
-    function enemyMove() {
-      const ex = enemy.x + enemy.size / 2;
-      const ey = enemy.y + enemy.size / 2;
-      const px = player.x + player.size / 2;
-      const py = player.y + player.size / 2;
-
-      let dx = 0;
-      let dy = 0;
-
-      if (canSeePlayer()) {
-        const angle = Math.atan2(py - ey, px - ex);
-        dx = Math.cos(angle) * enemy.speed;
-        dy = Math.sin(angle) * enemy.speed;
-      } else {
-        const angle = performance.now() / 1000;
-        dx = Math.cos(angle) * 1.2;
-        dy = Math.sin(angle * 0.8) * 1.2;
-      }
-
-      moveWithCollision(enemy, dx, dy);
-    }
-
-    function useAbility() {
-      if (player.dashCooldown > 0 || player.invisibleTime > 0) return;
-
-      player.invisibleTime = 120;
-      player.dashCooldown = 240;
-      msg.textContent = "Invisible for 2 seconds!";
-      setTimeout(() => {
-        msg.textContent = "";
-      }, 1000);
-    }
-
-    function updatePlayer() {
-      let speed = player.speed;
-
-      if (player.dashTime > 0) {
-        speed = player.dashSpeed;
-        player.dashTime--;
-      }
-
-      if (player.invisibleTime > 0) {
-        player.invisibleTime--;
-      }
-
-      if (player.dashCooldown > 0) {
-        player.dashCooldown--;
-      }
-
-      if (keys["arrowup"] || keys["w"]) dy -= speed;
-      if (keys["arrowdown"] || keys["s"]) dy += speed;
-      if (keys["arrowleft"] || keys["a"]) dx -= speed;
-      if (keys["arrowright"] || keys["d"]) dx += speed;
-
-      moveWithCollision(player, dx, dy);
-    }
-
-    function collectCoins() {
-      let count = 0;
-      coins.forEach(c => {
-        if (!c.taken) {
-          if (
-            player.x < c.x + c.r &&
-            player.x + player.size > c.x - c.r &&
-            player.y < c.y + c.r &&
-            player.y + player.size > c.y - c.r
-          ) {
-            c.taken = true;
-          }
-        }
-        if (c.taken) count++;
-      });
-
-      coinCountEl.textContent = count;
-      if (count === coins.length) {
-        door.open = true;
-      }
-    }
-
-    function checkDeath() {
-      if (player.invisibleTime > 0) return;
-
-      if (rectHit(player, enemy)) {
-        msg.textContent = "You died! Refresh to restart.";
-        gameOver = true;
-      }
-    }
-
-    function checkWin() {
-      if (!door.open) return;
-
-      if (
-        player.x < door.x + door.w &&
-        player.x + player.size > door.x &&
-        player.y < door.y + door.h &&
-        player.y + player.size > door.y
-      ) {
-        msg.textContent = "You win!";
-        gameOver = true;
-      }
-    }
-
-    function loop() {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-      drawMap();
-      drawWalls();
-      drawCoins();
-      drawDoor();
-
-      if (!gameOver) {
-        updatePlayer();
-        enemyMove();
-        collectCoins();
-        checkDeath();
-        checkWin();
-      }
-
-      drawPlayer();
-      drawEnemy();
-
-      if (player.invisibleTime > 0) {
-        ctx.beginPath();
-        ctx.arc(player.x + player.size / 2, player.y + player.size / 2, 20, 0, Math.PI * 2);
-        ctx.strokeStyle = "rgba(0,255,255,0.8)";
-        ctx.lineWidth = 2;
-        ctx.stroke();
-        abilityText.textContent = "Invisible";
-      } else if (player.dashCooldown > 0) {
-        abilityText.textContent = "Cooldown";
-      } else {
-        abilityText.textContent = "Ready";
-      }
-
-      requestAnimationFrame(loop);
-    }
-
-    loop();
+    gameLoop();
   </script>
 </body>
 </html>
