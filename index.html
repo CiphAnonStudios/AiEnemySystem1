@@ -3,8 +3,21 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Wall Builder Game</title>
+  <title>AI Enemy System</title>
   <style>
+    :root {
+      --bg: #0e1016;
+      --panel: #141a24;
+      --panel2: #1b2230;
+      --line: #2a3446;
+      --text: #e8eefc;
+      --muted: #94a3b8;
+      --green: #4ade80;
+      --blue: #38bdf8;
+      --red: #fb7185;
+      --yellow: #facc15;
+    }
+
     * {
       box-sizing: border-box;
       margin: 0;
@@ -13,7 +26,8 @@
 
     body {
       overflow: hidden;
-      background: #111;
+      background: radial-gradient(circle at top, #161b2a 0%, var(--bg) 65%);
+      color: var(--text);
       font-family: Arial, sans-serif;
     }
 
@@ -21,51 +35,48 @@
       position: relative;
       width: 100vw;
       height: 100vh;
-      background: #1b1b1b;
       overflow: hidden;
     }
 
-    .wall {
+    #playArea {
       position: absolute;
-      background: #555;
+      inset: 0 0 120px 0;
+      overflow: hidden;
+    }
+
+    .borderWall {
+      position: absolute;
+      background: linear-gradient(180deg, #5b6476, #3f4757);
       z-index: 2;
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,0.08);
     }
 
     #topWall {
       top: 0;
       left: 0;
-      width: 100%;
-      height: 20px;
+      right: 0;
+      height: 18px;
     }
 
     #bottomWall {
-      bottom: 120px;
       left: 0;
-      width: 100%;
-      height: 20px;
+      right: 0;
+      bottom: 120px;
+      height: 18px;
     }
 
     #leftWall {
       top: 0;
       left: 0;
-      width: 20px;
-      height: 100%;
+      bottom: 0;
+      width: 18px;
     }
 
     #rightWall {
       top: 0;
       right: 0;
-      width: 20px;
-      height: 100%;
-    }
-
-    #playArea {
-      position: absolute;
-      top: 20px;
-      left: 20px;
-      right: 20px;
-      bottom: 140px;
-      overflow: hidden;
+      bottom: 0;
+      width: 18px;
     }
 
     #panel {
@@ -74,111 +85,190 @@
       right: 0;
       bottom: 0;
       height: 120px;
-      background: #222;
-      border-top: 2px solid #444;
+      background: linear-gradient(180deg, var(--panel), var(--panel2));
+      border-top: 1px solid var(--line);
       display: flex;
       align-items: center;
-      gap: 14px;
-      padding: 12px;
-      z-index: 10;
+      gap: 12px;
+      padding: 14px;
+      z-index: 20;
+      box-shadow: 0 -12px 30px rgba(0,0,0,0.35);
+    }
+
+    .panelLabel {
+      font-size: 12px;
+      color: var(--muted);
+      margin-right: 4px;
+      min-width: 52px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
     }
 
     .tool {
-      width: 70px;
-      height: 70px;
-      border: 2px solid white;
+      border-radius: 10px;
       cursor: grab;
+      user-select: none;
       display: flex;
       align-items: center;
       justify-content: center;
-      user-select: none;
+      position: relative;
+      box-shadow: 0 8px 16px rgba(0,0,0,0.2);
+      transition: transform 0.15s ease, filter 0.15s ease;
     }
 
-    .rect-small { width: 40px; height: 25px; background: #ff5c5c; }
-    .rect-medium { width: 60px; height: 35px; background: #ffd54a; }
-    .rect-large { width: 90px; height: 50px; background: #4fc3f7; }
+    .tool:hover {
+      transform: translateY(-2px);
+      filter: brightness(1.08);
+    }
+
+    .tool:active {
+      cursor: grabbing;
+      transform: scale(0.98);
+    }
+
+    .tool small {
+      color: rgba(0,0,0,0.7);
+      font-weight: 700;
+      text-shadow: 0 1px 0 rgba(255,255,255,0.25);
+    }
+
+    .rect-small {
+      width: 44px;
+      height: 26px;
+      background: linear-gradient(180deg, #ff7b7b, #ef4444);
+    }
+
+    .rect-medium {
+      width: 66px;
+      height: 38px;
+      background: linear-gradient(180deg, #ffe66f, #eab308);
+    }
+
+    .rect-large {
+      width: 98px;
+      height: 54px;
+      background: linear-gradient(180deg, #6fd4ff, #0ea5e9);
+    }
 
     .player-tool {
-      width: 45px;
-      height: 45px;
-      background: limegreen;
+      width: 46px;
+      height: 46px;
+      background: linear-gradient(180deg, #6bf28f, #22c55e);
+      border: 2px solid rgba(255,255,255,0.35);
     }
 
-    .delete-box {
-      width: 80px;
-      height: 80px;
-      background: #222;
-      color: white;
-      border: 2px dashed white;
+    .deleteBox {
+      width: 90px;
+      height: 74px;
+      border: 2px dashed rgba(255,255,255,0.5);
+      color: #ffd7df;
+      background: rgba(251, 113, 133, 0.12);
+      font-size: 14px;
+      font-weight: 700;
+      cursor: default;
+    }
+
+    #hint {
+      margin-left: auto;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.35;
+      max-width: 340px;
     }
 
     .placedRect {
       position: absolute;
-      z-index: 4;
-      border: 2px solid rgba(255,255,255,0.7);
+      z-index: 5;
+      border-radius: 8px;
+      box-shadow: 0 10px 18px rgba(0,0,0,0.25);
+      border: 2px solid rgba(255,255,255,0.14);
+      cursor: grab;
+    }
+
+    .placedRect:active {
+      cursor: grabbing;
     }
 
     #player {
       position: absolute;
-      width: 45px;
-      height: 45px;
-      background: limegreen;
-      border: 2px solid #0a0;
-      z-index: 6;
+      width: 34px;
+      height: 34px;
+      background: linear-gradient(180deg, #74ff9b, #22c55e);
+      border: 2px solid rgba(255,255,255,0.25);
+      border-radius: 7px;
+      z-index: 8;
+      box-shadow: 0 0 18px rgba(34,197,94,0.28);
     }
 
     #aiBall {
       position: absolute;
-      width: 40px;
-      height: 40px;
-      background: deepskyblue;
+      width: 34px;
+      height: 34px;
       border-radius: 50%;
-      z-index: 6;
+      z-index: 8;
+      background: radial-gradient(circle at 30% 30%, #8be7ff, #1d9cf0 70%, #1578c7 100%);
+      box-shadow: 0 0 20px rgba(56,189,248,0.35);
     }
 
-    #sensor {
+    #sensorRing {
       position: absolute;
-      width: 120px;
-      height: 120px;
-      border: 2px dashed rgba(0,255,255,0.35);
+      width: 130px;
+      height: 130px;
       border-radius: 50%;
-      transform: translate(-40px, -40px);
+      border: 2px dashed rgba(56,189,248,0.25);
+      transform: translate(-48px, -48px);
       pointer-events: none;
     }
 
     #deleteZone {
       position: absolute;
-      right: 20px;
-      bottom: 150px;
-      width: 100px;
-      height: 100px;
-      background: rgba(255, 0, 0, 0.25);
-      border: 2px solid red;
+      right: 18px;
+      bottom: 136px;
+      width: 112px;
+      height: 112px;
+      background: rgba(251, 113, 133, 0.12);
+      border: 2px solid rgba(251, 113, 133, 0.7);
+      border-radius: 16px;
+      color: #ffd7df;
       display: flex;
       align-items: center;
       justify-content: center;
-      color: white;
-      z-index: 11;
-      font-weight: bold;
+      z-index: 25;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      box-shadow: 0 12px 24px rgba(0,0,0,0.25);
+    }
+
+    .selected {
+      outline: 3px solid rgba(255,255,255,0.85);
+      outline-offset: 2px;
     }
   </style>
 </head>
 <body>
   <div id="game">
-    <div id="topWall" class="wall"></div>
-    <div id="bottomWall" class="wall"></div>
-    <div id="leftWall" class="wall"></div>
-    <div id="rightWall" class="wall"></div>
-
     <div id="playArea"></div>
+
+    <div id="topWall" class="borderWall"></div>
+    <div id="bottomWall" class="borderWall"></div>
+    <div id="leftWall" class="borderWall"></div>
+    <div id="rightWall" class="borderWall"></div>
+
     <div id="deleteZone">DELETE</div>
 
     <div id="panel">
-      <div class="tool rect-small" draggable="true" data-type="small"></div>
-      <div class="tool rect-medium" draggable="true" data-type="medium"></div>
-      <div class="tool rect-large" draggable="true" data-type="large"></div>
-      <div class="tool player-tool" draggable="true" data-type="player"></div>
-      <div class="tool delete-box">Delete</div>
+      <div class="panelLabel">Place</div>
+      <div class="tool rect-small" draggable="true" data-type="small"><small>SM</small></div>
+      <div class="tool rect-medium" draggable="true" data-type="medium"><small>MD</small></div>
+      <div class="tool rect-large" draggable="true" data-type="large"><small>LG</small></div>
+      <div class="panelLabel">Player</div>
+      <div class="tool player-tool" draggable="true" data-type="player"><small>P</small></div>
+      <div class="panelLabel">Delete</div>
+      <div class="tool deleteBox"><small>DROP</small></div>
+
+      <div id="hint">
+        Drag blocks onto the map. Drag the green square to place the player. Use WASD to move. Drag blocks into DELETE to remove them.
+      </div>
     </div>
   </div>
 
@@ -186,104 +276,27 @@
     const playArea = document.getElementById("playArea");
     const deleteZone = document.getElementById("deleteZone");
 
-    let draggedType = null;
-    let draggedElement = null;
-    let player = null;
-    let aiBall = null;
-    let sensor = null;
-    let aiX = 200;
-    let aiY = 200;
-    let aiVX = 2;
-    let aiVY = 2;
     const keys = {};
     const obstacles = [];
 
-    document.querySelectorAll("[draggable='true']").forEach(tool => {
-      tool.addEventListener("dragstart", () => {
-        draggedType = tool.dataset.type;
-        draggedElement = null;
-      });
-    });
+    let dragType = null;
+    let dragItem = null;
+    let dragOffsetX = 0;
+    let dragOffsetY = 0;
 
-    playArea.addEventListener("dragover", e => e.preventDefault());
+    let player = null;
+    let aiBall = null;
+    let sensorRing = null;
 
-    playArea.addEventListener("drop", e => {
-      e.preventDefault();
-      const rect = playArea.getBoundingClientRect();
-      const x = e.clientX - rect.left;
-      const y = e.clientY - rect.top;
-
-      if (draggedType === "small" || draggedType === "medium" || draggedType === "large") {
-        createObstacle(draggedType, x, y);
-      } else if (draggedType === "player") {
-        if (!player) {
-          player = document.createElement("div");
-          player.id = "player";
-          playArea.appendChild(player);
-        }
-        player.style.left = x + "px";
-        player.style.top = y + "px";
-      }
-
-      draggedType = null;
-    });
-
-    function createObstacle(type, x, y) {
-      const div = document.createElement("div");
-      div.className = "placedRect";
-      div.draggable = true;
-
-      if (type === "small") {
-        div.style.width = "40px";
-        div.style.height = "25px";
-        div.style.background = "#ff5c5c";
-      } else if (type === "medium") {
-        div.style.width = "60px";
-        div.style.height = "35px";
-        div.style.background = "#ffd54a";
-      } else {
-        div.style.width = "90px";
-        div.style.height = "50px";
-        div.style.background = "#4fc3f7";
-      }
-
-      div.style.left = x + "px";
-      div.style.top = y + "px";
-
-      div.addEventListener("dragstart", () => {
-        draggedElement = div;
-      });
-
-      playArea.appendChild(div);
-      obstacles.push(div);
-    }
-
-    playArea.addEventListener("dragend", () => {
-      if (draggedElement) {
-        const zone = deleteZone.getBoundingClientRect();
-        const box = draggedElement.getBoundingClientRect();
-
-        if (
-          box.left < zone.right &&
-          box.right > zone.left &&
-          box.top < zone.bottom &&
-          box.bottom > zone.top
-        ) {
-          const index = obstacles.indexOf(draggedElement);
-          if (index !== -1) obstacles.splice(index, 1);
-          draggedElement.remove();
-        }
-      }
-      draggedElement = null;
-    });
-
-    document.addEventListener("keydown", e => {
-      keys[e.key.toLowerCase()] = true;
-    });
-
-    document.addEventListener("keyup", e => {
-      keys[e.key.toLowerCase()] = false;
-    });
+    const ai = {
+      x: 220,
+      y: 220,
+      vx: 2.2,
+      vy: 1.7,
+      speed: 2.2,
+      sensor: 120,
+      turnTimer: 0
+    };
 
     function rectsOverlap(a, b) {
       return !(
@@ -294,7 +307,7 @@
       );
     }
 
-    function getRect(el, x, y) {
+    function toPlayRect(el, x, y) {
       return {
         left: x,
         top: y,
@@ -303,8 +316,8 @@
       };
     }
 
-    function obstacleRect(ob) {
-      const r = ob.getBoundingClientRect();
+    function obstacleRect(el) {
+      const r = el.getBoundingClientRect();
       const p = playArea.getBoundingClientRect();
       return {
         left: r.left - p.left,
@@ -314,16 +327,158 @@
       };
     }
 
-    function collidesWithObstacle(rect) {
+    function pointInDeleteZone(x, y, w, h) {
+      const zone = deleteZone.getBoundingClientRect();
+      const p = playArea.getBoundingClientRect();
+      const box = {
+        left: p.left + x,
+        top: p.top + y,
+        right: p.left + x + w,
+        bottom: p.top + y + h
+      };
+
+      return rectsOverlap(
+        box,
+        {
+          left: zone.left,
+          top: zone.top,
+          right: zone.right,
+          bottom: zone.bottom
+        }
+      );
+    }
+
+    function collides(rect) {
       return obstacles.some(ob => rectsOverlap(rect, obstacleRect(ob)));
     }
+
+    function clearSelection() {
+      document.querySelectorAll(".selected").forEach(el => el.classList.remove("selected"));
+    }
+
+    function createBlock(type, x, y) {
+      const div = document.createElement("div");
+      div.className = "placedRect";
+      div.draggable = true;
+      div.dataset.type = type;
+
+      if (type === "small") {
+        div.style.width = "44px";
+        div.style.height = "26px";
+        div.style.background = "linear-gradient(180deg, #ff7b7b, #ef4444)";
+      } else if (type === "medium") {
+        div.style.width = "66px";
+        div.style.height = "38px";
+        div.style.background = "linear-gradient(180deg, #ffe66f, #eab308)";
+      } else {
+        div.style.width = "98px";
+        div.style.height = "54px";
+        div.style.background = "linear-gradient(180deg, #6fd4ff, #0ea5e9)";
+      }
+
+      div.style.left = x + "px";
+      div.style.top = y + "px";
+
+      div.addEventListener("dragstart", e => {
+        dragItem = div;
+        dragOffsetX = e.offsetX;
+        dragOffsetY = e.offsetY;
+        div.classList.add("selected");
+      });
+
+      div.addEventListener("dragend", () => {
+        if (!dragItem) return;
+
+        const left = parseFloat(div.style.left);
+        const top = parseFloat(div.style.top);
+
+        if (pointInDeleteZone(left, top, div.offsetWidth, div.offsetHeight)) {
+          const i = obstacles.indexOf(div);
+          if (i !== -1) obstacles.splice(i, 1);
+          div.remove();
+        }
+
+        clearSelection();
+        dragItem = null;
+      });
+
+      playArea.appendChild(div);
+      obstacles.push(div);
+    }
+
+    function createPlayer(x, y) {
+      if (!player) {
+        player = document.createElement("div");
+        player.id = "player";
+        playArea.appendChild(player);
+      }
+      player.style.left = x + "px";
+      player.style.top = y + "px";
+    }
+
+    function createAI() {
+      aiBall = document.createElement("div");
+      aiBall.id = "aiBall";
+
+      sensorRing = document.createElement("div");
+      sensorRing.id = "sensorRing";
+      aiBall.appendChild(sensorRing);
+
+      playArea.appendChild(aiBall);
+    }
+
+    document.querySelectorAll("[draggable='true']").forEach(tool => {
+      tool.addEventListener("dragstart", e => {
+        dragType = tool.dataset.type;
+        dragItem = null;
+        e.dataTransfer.setData("text/plain", dragType);
+      });
+    });
+
+    playArea.addEventListener("dragover", e => e.preventDefault());
+
+    playArea.addEventListener("drop", e => {
+      e.preventDefault();
+      const p = playArea.getBoundingClientRect();
+      let x = e.clientX - p.left;
+      let y = e.clientY - p.top;
+
+      if (dragItem) {
+        x -= dragOffsetX;
+        y -= dragOffsetY;
+        dragItem.style.left = x + "px";
+        dragItem.style.top = y + "px";
+        dragItem.classList.remove("selected");
+        dragItem = null;
+        return;
+      }
+
+      if (dragType === "player") {
+        createPlayer(x - 17, y - 17);
+      } else if (dragType === "small" || dragType === "medium" || dragType === "large") {
+        createBlock(dragType, x, y);
+      }
+
+      dragType = null;
+    });
+
+    document.addEventListener("keydown", e => {
+      keys[e.key.toLowerCase()] = true;
+    });
+
+    document.addEventListener("keyup", e => {
+      keys[e.key.toLowerCase()] = false;
+    });
 
     function movePlayer() {
       if (!player) return;
 
-      let x = parseFloat(player.style.left || 100);
-      let y = parseFloat(player.style.top || 100);
-      const speed = 4;
+      const speed = 4.5;
+      const maxX = playArea.clientWidth - player.offsetWidth;
+      const maxY = playArea.clientHeight - player.offsetHeight;
+
+      let x = parseFloat(player.style.left || 80);
+      let y = parseFloat(player.style.top || 80);
 
       let nextX = x;
       let nextY = y;
@@ -333,128 +488,121 @@
       if (keys["a"]) nextX -= speed;
       if (keys["d"]) nextX += speed;
 
-      const maxX = playArea.clientWidth - player.offsetWidth;
-      const maxY = playArea.clientHeight - player.offsetHeight;
-
       nextX = Math.max(0, Math.min(maxX, nextX));
       nextY = Math.max(0, Math.min(maxY, nextY));
 
-      const testRect = getRect(player, nextX, nextY);
-
-      if (!collidesWithObstacle(testRect)) {
+      const test = toPlayRect(player, nextX, nextY);
+      if (!collides(test)) {
         player.style.left = nextX + "px";
         player.style.top = nextY + "px";
       }
     }
 
-    function createAIBall() {
-      aiBall = document.createElement("div");
-      aiBall.id = "aiBall";
-
-      sensor = document.createElement("div");
-      sensor.id = "sensor";
-      aiBall.appendChild(sensor);
-
-      playArea.appendChild(aiBall);
+    function sensorRect(x, y) {
+      return {
+        left: x - 55,
+        top: y - 55,
+        right: x + 55,
+        bottom: y + 55
+      };
     }
 
-    function aiRectAt(x, y) {
+    function aiBodyRect(x, y) {
       return {
         left: x,
         top: y,
-        right: x + 40,
-        bottom: y + 40
+        right: x + 34,
+        bottom: y + 34
       };
     }
 
-    function sensorRectAt(x, y) {
-      return {
-        left: x - 40,
-        top: y - 40,
-        right: x + 80,
-        bottom: y + 80
-      };
-    }
-
-    function aiTouchesObstacle(rect) {
-      return obstacles.some(ob => rectsOverlap(rect, obstacleRect(ob)));
-    }
-
-    function aiSensorSeesObstacle(rect) {
-      return obstacles.some(ob => rectsOverlap(rect, obstacleRect(ob)));
-    }
-
-    function pickNewDirection() {
+    function rotateTowardOpenSpace() {
       const dirs = [
-        [2, 0], [-2, 0], [0, 2], [0, -2],
-        [2, 2], [2, -2], [-2, 2], [-2, -2]
+        [1, 0], [-1, 0], [0, 1], [0, -1],
+        [1, 1], [1, -1], [-1, 1], [-1, -1]
       ];
 
-      for (let i = 0; i < 20; i++) {
-        const d = dirs[Math.floor(Math.random() * dirs.length)];
-        const testX = aiX + d[0] * 12;
-        const testY = aiY + d[1] * 12;
-        const testRect = aiRectAt(
-          Math.max(0, Math.min(playArea.clientWidth - 40, testX)),
-          Math.max(0, Math.min(playArea.clientHeight - 40, testY))
-        );
+      let best = null;
+      let bestScore = -Infinity;
 
-        if (!aiSensorSeesObstacle(testRect)) {
-          aiVX = d[0];
-          aiVY = d[1];
-          return;
+      for (const [dx, dy] of dirs) {
+        const len = Math.hypot(dx, dy) || 1;
+        const nx = dx / len;
+        const ny = dy / len;
+
+        const testX = ai.x + nx * 40;
+        const testY = ai.y + ny * 40;
+        const s = sensorRect(testX + 17, testY + 17);
+        const blocked = obstacles.some(ob => rectsOverlap(s, obstacleRect(ob)));
+
+        if (!blocked) {
+          const score = Math.random();
+          if (score > bestScore) {
+            bestScore = score;
+            best = [nx, ny];
+          }
         }
       }
 
-      aiVX *= -1;
-      aiVY *= -1;
+      if (best) {
+        ai.vx = best[0] * ai.speed;
+        ai.vy = best[1] * ai.speed;
+      } else {
+        ai.vx *= -1;
+        ai.vy *= -1;
+      }
     }
 
-    function senseAndMoveAI() {
-      if (!aiBall) return;
+    function keepAIAwayFromWallsAndBlocks() {
+      const maxX = playArea.clientWidth - 34;
+      const maxY = playArea.clientHeight - 34;
 
-      const maxX = playArea.clientWidth - 40;
-      const maxY = playArea.clientHeight - 40;
+      const sensorBox = sensorRect(ai.x + 17, ai.y + 17);
+      const bodyBox = aiBodyRect(ai.x, ai.y);
 
-      const sensorRect = sensorRectAt(aiX + 20, aiY + 20);
+      const sensorHit = obstacles.some(ob => rectsOverlap(sensorBox, obstacleRect(ob)));
+      const bodyHit = obstacles.some(ob => rectsOverlap(bodyBox, obstacleRect(ob)));
 
-      if (aiSensorSeesObstacle(sensorRect)) {
-        pickNewDirection();
+      if (sensorHit) {
+        rotateTowardOpenSpace();
       }
 
-      let nextX = aiX + aiVX;
-      let nextY = aiY + aiVY;
+      let nextX = ai.x + ai.vx;
+      let nextY = ai.y + ai.vy;
 
       if (nextX <= 0 || nextX >= maxX) {
-        aiVX *= -1;
-        pickNewDirection();
+        ai.vx *= -1;
+        nextX = ai.x + ai.vx;
       }
 
       if (nextY <= 0 || nextY >= maxY) {
-        aiVY *= -1;
-        pickNewDirection();
+        ai.vy *= -1;
+        nextY = ai.y + ai.vy;
       }
 
-      const nextRect = aiRectAt(nextX, nextY);
+      const nextBox = aiBodyRect(nextX, nextY);
 
-      if (aiTouchesObstacle(nextRect)) {
-        pickNewDirection();
-        nextX = aiX + aiVX;
-        nextY = aiY + aiVY;
+      if (bodyHit || obstacles.some(ob => rectsOverlap(nextBox, obstacleRect(ob)))) {
+        rotateTowardOpenSpace();
+        nextX = ai.x + ai.vx;
+        nextY = ai.y + ai.vy;
       }
 
-      aiX = Math.max(0, Math.min(maxX, nextX));
-      aiY = Math.max(0, Math.min(maxY, nextY));
+      ai.x = Math.max(0, Math.min(maxX, nextX));
+      ai.y = Math.max(0, Math.min(maxY, nextY));
 
-      aiBall.style.left = aiX + "px";
-      aiBall.style.top = aiY + "px";
+      aiBall.style.left = ai.x + "px";
+      aiBall.style.top = ai.y + "px";
+
+      sensorRing.style.left = "17px";
+      sensorRing.style.top = "17px";
     }
 
-    createAIBall();
+    createAI();
 
     function loop() {
       movePlayer();
-      senseAndMoveAI();
+      keepAIAwayFromWallsAndBlocks();
       requestAnimationFrame(loop);
     }
 
